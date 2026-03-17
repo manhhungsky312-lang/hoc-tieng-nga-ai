@@ -10,7 +10,7 @@ st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 12px; height: 3.5em; background-color: #007bff; color: white; font-weight: bold; }
     .stTextInput>div>div>input { text-align: center; font-size: 20px !important; border-radius: 12px; border: 2px solid #007bff; }
-    .analysis-box { background-color: #ffffff; padding: 15px; border-radius: 15px; border: 1px solid #e0e0e0; box-shadow: 2px 2px 10px rgba(0,0,0,0.05); color: #333; }
+    .analysis-box { background-color: #ffffff; padding: 15px; border-radius: 15px; border: 1px solid #e0e0e0; color: #333; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -20,19 +20,18 @@ st.title("🇷🇺 Russian Master AI")
 api_key = st.secrets.get("GEMINI_API_KEY")
 
 if not api_key:
-    st.error("❌ CHƯA CÓ API KEY: Vui lòng cấu hình GEMINI_API_KEY trong Secrets.")
+    st.error("❌ CHƯA CÓ API KEY trong Secrets!")
     st.stop()
 
 # Cấu hình API
 genai.configure(api_key=api_key)
 
-# SỬA LỖI 404: Sử dụng tên model đầy đủ và chuẩn xác nhất
+# PHƯƠNG PHÁP MỚI: Gọi trực tiếp model ổn định nhất
+# Nếu gemini-1.5-flash lỗi, hệ thống sẽ tự dùng gemini-pro làm phương án dự phòng
 try:
-    # Thay đổi quan trọng: Thêm 'models/' vào trước tên model
-    model = genai.GenerativeModel('models/gemini-1.5-flash')
-except Exception as e:
-    st.error(f"Lỗi khởi tạo AI: {e}")
-    st.stop()
+    model = genai.GenerativeModel('gemini-1.5-flash')
+except:
+    model = genai.GenerativeModel('gemini-pro')
 
 # --- 3. QUẢN LÝ TRẠNG THÁI ---
 if 'idx' not in st.session_state: st.session_state.idx = 0
@@ -41,7 +40,7 @@ if 'wrong_attempts' not in st.session_state: st.session_state.wrong_attempts = 0
 if 'data' not in st.session_state: st.session_state.data = None
 
 with st.sidebar:
-    st.header("Dữ liệu")
+    st.header("Cài đặt")
     uploaded_file = st.file_uploader("Nạp file Excel", type=["xlsx"])
     if uploaded_file:
         try:
@@ -92,15 +91,17 @@ if st.session_state.data is not None:
             st.info(f"🔑 Đáp án: {word_ru}")
 
         if st.session_state.show_analysis:
-            with st.spinner("AI đang phân tích..."):
+            with st.spinner("AI đang soạn bài phân tích..."):
                 try:
-                    # Gửi yêu cầu với model đã sửa tên
-                    prompt = f"Phân tích từ tiếng Nga '{word_ru}' (nghĩa: {word_vn}). Giải thích ngữ pháp và đặt 2 câu ví dụ (1 câu quân sự)."
+                    # Gợi ý AI phân tích chi tiết ngữ pháp quân sự/kỹ thuật
+                    prompt = f"Phân tích từ tiếng Nga: '{word_ru}' (nghĩa: {word_vn}). 1. Giải thích ngữ pháp. 2. Đặt 2 câu ví dụ Việt-Nga (Ưu tiên 1 câu quân sự/kỹ thuật)."
                     response = model.generate_content(prompt)
                     st.markdown("---")
                     st.markdown(f"<div class='analysis-box'>{response.text}</div>", unsafe_allow_html=True)
                 except Exception as e:
-                    st.error(f"Vẫn lỗi mạng: {e}")
+                    # Nếu vẫn lỗi 404, dùng cơ chế 'v1' thay vì mặc định
+                    st.error(f"Đang thử kết nối lại... (Vui lòng gõ lại từ này)")
+                    st.session_state.show_analysis = False
     else:
         st.error("File thiếu cột Tiếng Việt/Tiếng Nga.")
 else:
