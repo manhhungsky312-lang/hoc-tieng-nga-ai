@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
+from google.generativeai.types import RequestOptions
 import random
 
-# --- CẤU HÌNH GIAO DIỆN ---
+# --- 1. CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(page_title="Học Tiếng Nga AI", page_icon="🇷🇺", layout="centered")
 
 st.markdown("""
@@ -16,7 +17,7 @@ st.markdown("""
 
 st.title("🇷🇺 Russian Master AI")
 
-# --- KẾT NỐI AI ---
+# --- 2. CẤU HÌNH AI (ÉP PHIÊN BẢN V1) ---
 api_key = st.secrets.get("GEMINI_API_KEY")
 if not api_key:
     st.error("❌ Thiếu GEMINI_API_KEY trong Secrets!")
@@ -24,13 +25,10 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
-# Cách gọi model an toàn nhất để tránh lỗi 404
-try:
-    model = genai.GenerativeModel(model_name='gemini-1.5-flash')
-except:
-    model = genai.GenerativeModel(model_name='gemini-pro')
+# Giải pháp mạnh: Ép sử dụng API phiên bản v1 để tránh lỗi 404 v1beta
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- QUẢN LÝ TRẠNG THÁI ---
+# --- 3. QUẢN LÝ TRẠNG THÁI ---
 if 'idx' not in st.session_state: st.session_state.idx = 0
 if 'show_analysis' not in st.session_state: st.session_state.show_analysis = False
 if 'data' not in st.session_state: st.session_state.data = None
@@ -47,7 +45,7 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Lỗi file: {e}")
 
-# --- GIAO DIỆN CHÍNH ---
+# --- 4. GIAO DIỆN HÀNH ĐỘNG ---
 if st.session_state.data is not None:
     df = st.session_state.data
     col_ru = next((c for c in df.columns if 'nga' in c or 'ru' in c), None)
@@ -81,13 +79,17 @@ if st.session_state.data is not None:
         if st.session_state.show_analysis:
             with st.spinner("AI đang soạn bài phân tích..."):
                 try:
-                    # Ép AI phân tích sâu ngữ pháp và câu ví dụ
-                    prompt = f"Phân tích từ tiếng Nga '{word_ru}' (nghĩa: {word_vn}). Giải thích ngữ pháp ngắn gọn và đặt 2 câu ví dụ Việt-Nga (Ưu tiên 1 câu liên quan đến chuyên ngành hoặc quân sự)."
-                    response = model.generate_content(prompt)
+                    # SỬA LỖI 404: Ép phiên bản API v1 thông qua RequestOptions
+                    prompt = f"Phân tích từ tiếng Nga '{word_ru}' (nghĩa: {word_vn}). Giải thích ngữ pháp ngắn gọn và đặt 2 câu ví dụ Việt-Nga (1 câu chuyên ngành quân sự/kỹ thuật)."
+                    response = model.generate_content(
+                        prompt,
+                        request_options=RequestOptions(api_version='v1')
+                    )
                     st.markdown("---")
                     st.markdown(f"<div class='analysis-box'>{response.text}</div>", unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"Lỗi kết nối AI: {e}")
+                    st.info("Hãy thử nhấn 'Kiểm tra' lại lần nữa sau khi ứng dụng đã Reboot xong.")
     else:
         st.error("File thiếu cột Tiếng Việt/Tiếng Nga.")
 else:
