@@ -3,7 +3,7 @@ import pandas as pd
 import google.generativeai as genai
 import random
 
-# --- 1. CẤU HÌNH GIAO DIỆN ---
+# --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(page_title="Học Tiếng Nga AI", page_icon="🇷🇺", layout="centered")
 
 st.markdown("""
@@ -14,33 +14,29 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CẤU HÌNH AI (SỬA LỖI 404 TRIỆT ĐỂ) ---
 st.title("🇷🇺 Russian Master AI")
 
+# --- KẾT NỐI AI ---
 api_key = st.secrets.get("GEMINI_API_KEY")
-
 if not api_key:
-    st.error("❌ CHƯA CÓ API KEY trong Secrets!")
+    st.error("❌ Thiếu GEMINI_API_KEY trong Secrets!")
     st.stop()
 
-# Cấu hình API
 genai.configure(api_key=api_key)
 
-# PHƯƠNG PHÁP MỚI: Gọi trực tiếp model ổn định nhất
-# Nếu gemini-1.5-flash lỗi, hệ thống sẽ tự dùng gemini-pro làm phương án dự phòng
+# Cách gọi model an toàn nhất để tránh lỗi 404
 try:
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel(model_name='gemini-1.5-flash')
 except:
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel(model_name='gemini-pro')
 
-# --- 3. QUẢN LÝ TRẠNG THÁI ---
+# --- QUẢN LÝ TRẠNG THÁI ---
 if 'idx' not in st.session_state: st.session_state.idx = 0
 if 'show_analysis' not in st.session_state: st.session_state.show_analysis = False
-if 'wrong_attempts' not in st.session_state: st.session_state.wrong_attempts = 0
 if 'data' not in st.session_state: st.session_state.data = None
 
 with st.sidebar:
-    st.header("Cài đặt")
+    st.header("Dữ liệu")
     uploaded_file = st.file_uploader("Nạp file Excel", type=["xlsx"])
     if uploaded_file:
         try:
@@ -51,7 +47,7 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Lỗi file: {e}")
 
-# --- 4. GIAO DIỆN HÀNH ĐỘNG ---
+# --- GIAO DIỆN CHÍNH ---
 if st.session_state.data is not None:
     df = st.session_state.data
     col_ru = next((c for c in df.columns if 'nga' in c or 'ru' in c), None)
@@ -59,7 +55,6 @@ if st.session_state.data is not None:
 
     if col_ru and col_vn:
         if st.session_state.idx >= len(df): st.session_state.idx = 0
-            
         row = df.iloc[st.session_state.idx]
         word_vn = str(row[col_vn]).strip()
         word_ru = str(row[col_ru]).strip()
@@ -72,36 +67,27 @@ if st.session_state.data is not None:
         with c1:
             if st.button("Kiểm tra ✅"):
                 if user_input.strip().lower() == word_ru.lower():
-                    st.success("Đúng rồi!")
+                    st.success("Chính xác!")
                     st.session_state.show_analysis = True
                 else:
-                    st.error("Chưa đúng!")
-                    st.session_state.wrong_attempts += 1
+                    st.error(f"Chưa đúng! Đáp án: {word_ru}")
 
         with c2:
             if st.button("Từ tiếp theo ➡️"):
                 st.session_state.idx = random.randint(0, len(df)-1)
                 st.session_state.show_analysis = False
-                st.session_state.wrong_attempts = 0
                 st.rerun()
-
-        if st.session_state.wrong_attempts == 1:
-            st.warning(f"💡 Gợi ý: {word_ru[0]}...{word_ru[-1]}")
-        elif st.session_state.wrong_attempts >= 2:
-            st.info(f"🔑 Đáp án: {word_ru}")
 
         if st.session_state.show_analysis:
             with st.spinner("AI đang soạn bài phân tích..."):
                 try:
-                    # Gợi ý AI phân tích chi tiết ngữ pháp quân sự/kỹ thuật
-                    prompt = f"Phân tích từ tiếng Nga: '{word_ru}' (nghĩa: {word_vn}). 1. Giải thích ngữ pháp. 2. Đặt 2 câu ví dụ Việt-Nga (Ưu tiên 1 câu quân sự/kỹ thuật)."
+                    # Ép AI phân tích sâu ngữ pháp và câu ví dụ
+                    prompt = f"Phân tích từ tiếng Nga '{word_ru}' (nghĩa: {word_vn}). Giải thích ngữ pháp ngắn gọn và đặt 2 câu ví dụ Việt-Nga (Ưu tiên 1 câu liên quan đến chuyên ngành hoặc quân sự)."
                     response = model.generate_content(prompt)
                     st.markdown("---")
                     st.markdown(f"<div class='analysis-box'>{response.text}</div>", unsafe_allow_html=True)
                 except Exception as e:
-                    # Nếu vẫn lỗi 404, dùng cơ chế 'v1' thay vì mặc định
-                    st.error(f"Đang thử kết nối lại... (Vui lòng gõ lại từ này)")
-                    st.session_state.show_analysis = False
+                    st.error(f"Lỗi kết nối AI: {e}")
     else:
         st.error("File thiếu cột Tiếng Việt/Tiếng Nga.")
 else:
